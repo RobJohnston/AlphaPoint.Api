@@ -36,5 +36,15 @@ namespace AlphaPoint.Api.Models
         /// </summary>
         [JsonProperty("o")]
         public string Payload { get; set; }
+
+        /// <summary>
+        /// Deserialized the <c>Payload</c> to an object of arbitrary type <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T">The type of the payload.</typeparam>
+        /// <returns>The  <c>Payload</c> deserialized to the specified type.</returns>
+        public T PayloadAs<T>()
+        {
+            return JsonConvert.DeserializeObject<T>(Payload);
+        }
     }
 }
