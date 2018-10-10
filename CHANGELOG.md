@@ -10,4 +10,4 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 - First alpha release. A simple wrapper around the WebSocket to send and receive the message frame.
 
-[Unreleased]: https://github.com/RobJohnston/AlphaPoint.Api/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/RobJohnston/AlphaPoint.Api/compare/v1.0.0-alpha1...HEAD
