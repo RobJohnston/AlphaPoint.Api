@@ -2,6 +2,9 @@
 
 namespace AlphaPoint.Api.Models.Responses
 {
+    /// <summary>
+    /// A product is an asset that is tradable or paid out.
+    /// </summary>
     public class Product
     {
         /// <summary>

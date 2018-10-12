@@ -1,111 +1,89 @@
 ﻿# AlphaPoint.Api
 A .Net Standard client for the AlphaPoint API.  Full documentation here: https://alphapoint.github.io/slate
 
-This version is a wrapper around the WebSocket to simplify the sending and receiving of message frames.
-A future version will use this as a base to more easily consume API methods and return well-defined objects.
+This client will take care of the message framing and sequence numbering required by the API 
+and abstracts-away dealing with the low-level WebSocket.
+
+If you need to make a call to a function that I haven't yet incorporated, it can be done by using the 
+included `AlphaPointWebSocketClient` class directly.
+
+Future versions will include more of the API calls.
 
 ## Example usage
 
 ```csharp
-using AlphaPoint.Api;
-using AlphaPoint.Api.Models;
-using AlphaPoint.Api.Models.Responses;
-using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
+using AlphaPoint.Api;
 
 namespace ConsoleApp1
 {
     class Program
     {
-        private static readonly AutoResetEvent ExitEvent = new AutoResetEvent(false);
-
         static void Main(string[] args)
         {
             try
             {
                 var task = Task.Run(() => MainAsync());
                 task.Wait();
-
-                // Keep the console window open.
-                Console.WriteLine("\nPress <enter> key to exit.");
-                ConsoleKeyInfo keyInfo = Console.ReadKey();
-                while (keyInfo.Key != ConsoleKey.Enter)
-                    keyInfo = Console.ReadKey();
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Exception: " + ex.Message);
             }
+            finally
+            {
+                // Keep the console window open.
+                Console.WriteLine("\nPress <enter> key to exit.");
+                var keyInfo = Console.ReadKey();
+                while (keyInfo.Key != ConsoleKey.Enter)
+                    keyInfo = Console.ReadKey();
+            }
         }
 
         private static async Task MainAsync()
         {
-            Console.WriteLine("Hello NDAX!");
+            Console.WriteLine("Hello NDAX!\n");
 
-            var uri = "wss://api.ndax.io/WSGateway/";
+            var url = "wss://api.ndax.io/WSGateway/";
 
-            using (var socket = new AlphaPointWebSocketClient(new Uri(uri)))
+            using (var client = new AlphaPointClient(new Uri(url)))
             {
-                // Handle events
-                socket.ReceivedMessageFrame += (o, e) =>
+                // Ping the server to test connectivity.
+                var ping = await client.PingAsync();
+                Console.Write(ping.Msg);
+                Console.WriteLine("\n");
+
+                // See what instruments are available here.
+                var instruments = await client.GetInstrumentsAsync();
+
+                foreach(var instrument in instruments)
                 {
-                    Console.WriteLine("MessageFrame received:");
-                    Console.WriteLine("  m > " + e.MessageFrameResponse.MessageType);
-                    Console.WriteLine("  i > " + e.MessageFrameResponse.SequenceNumber);
-                    Console.WriteLine("  n > " + e.MessageFrameResponse.FunctionName);
-                    //Console.WriteLine("  o > " + e.MessageFrameResponse.Payload);
-                    Console.WriteLine();
+                    Console.WriteLine(string.Format("Instrument ID {0} is {1}.", 
+                        instrument.InstrumentId, instrument.Symbol));
+                }
 
-                    // Demo how to work with the result.
-                    if (e.MessageFrameResponse.FunctionName == "GetL2Snapshot")
-                    {
-                        var l2 = e.MessageFrameResponse.PayloadAs<List<Level2Snapshot>>();
+                Console.WriteLine();
 
-                        Console.WriteLine($"{"Date/Time",22} |{"Type",8} |{"Price",10} |{ "Quantity",11} |{"Side",5}");
-                        Console.WriteLine(new string('-', 65));
+                // Show part of the Level 2 Snapshot information for Instrument ID 1.
+                var snapshot = await client.GetL2SnapshotAsync(1);
+                Console.WriteLine($"{"Date/Time",22} |{"Type",8} |{"Price",10} |{ "Quantity",11} |{"Side",5}");
+                Console.WriteLine(new string('-', 65));
 
-                        foreach (var item in l2)
-                        {
-                            Console.WriteLine($"{PosixTimeStampToDateTime(item.ActionDateTime),22} |" +
-                                $"{item.ActionType,8} |" +
-                                $"{item.Price.ToString("N2"),10} |" +
-                                $"{item.Quantity.ToString("N8"),11} |" +
-                                $"{item.Side,5}");
-                        }
-                    }
-
-                    ExitEvent.Set();
-                };
-
-                // Create the payload
-                dynamic payload = new System.Dynamic.ExpandoObject();
-                payload.OMSId = 1;
-                payload.InstrumentId = 1;
-                payload.Depth = 100;
-
-                // Wrap a message into a frame object.
-                var frame = new MessageFrame()
+                foreach (var item in snapshot)
                 {
-                    MessageType = MessageType.Request,
-                    SequenceNumber = 2,
-                    FunctionName = "GetL2Snapshot",
-                    Payload = JsonConvert.SerializeObject(payload),
-                };
-
-                // Start the client and send the message.
-                await socket.Start();
-                await socket.Send(frame);
-
-                ExitEvent.WaitOne();
+                    Console.WriteLine($"{PosixTimeStampToDateTime(item.ActionDateTime),22} |" +
+                               $"{item.ActionType,8} |" +
+                               $"{item.Price.ToString("N2"),10} |" +
+                               $"{item.Quantity.ToString("N8"),11} |" +
+                               $"{item.Side,5}");
+                }
             }
         }
 
         public static DateTime PosixTimeStampToDateTime(double timeStamp)
         {
-            DateTime dt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+            var dt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
             dt = dt.AddMilliseconds(timeStamp).ToLocalTime();
             return dt;
         }
@@ -116,77 +94,76 @@ namespace ConsoleApp1
 ### Output
 ```
 Hello NDAX!
-MessageFrame received:
-  m > Reply
-  i > 2
-  n > GetL2Snapshot
+
+PONG
+
+Instrument ID 1 is BTCCAD.
+Instrument ID 2 is BCHCAD.
+Instrument ID 3 is ETHCAD.
+Instrument ID 4 is XRPCAD.
+Instrument ID 5 is LTCCAD.
+Instrument ID 74 is BTCUSD.
+Instrument ID 75 is EOSCAD.
 
              Date/Time |    Type |     Price |   Quantity | Side
 -----------------------------------------------------------------
- 2018-10-10 6:52:31 PM |     New |  8,530.00 | 0.70344880 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,500.00 | 0.01300000 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,460.01 | 0.63737062 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,459.89 | 0.57906748 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,459.37 | 0.02523204 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,459.12 | 0.13396543 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,458.86 | 0.39436493 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,458.48 | 0.00572819 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,457.97 | 0.21305503 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,457.84 | 0.07534153 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,457.33 | 0.18856173 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,457.07 | 0.00572370 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,456.82 | 0.49919611 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,456.69 | 0.03960801 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,456.30 | 0.38466649 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,456.18 | 0.07527020 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,455.66 | 1.60153236 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,455.28 | 0.75478451 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,455.15 | 1.49758832 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,455.03 | 7.00000000 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,453.87 | 0.16392300 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,453.36 | 0.99839222 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,453.23 | 0.49919611 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,453.11 | 1.95684874 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,452.98 | 2.25353822 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,452.08 | 0.49919611 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,451.96 | 0.03801526 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,246.70 | 0.41800000 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,246.45 | 0.25000000 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,238.48 | 0.51100000 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,238.23 | 0.32000000 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,237.60 | 0.30000000 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,200.00 | 0.21392684 |  Buy
- 2018-10-10 6:52:31 PM |     New |      0.01 |31.00000000 |  Buy
- 2018-10-10 6:52:31 PM |     New |  8,671.92 | 0.10826416 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,672.05 | 1.42836521 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,672.19 | 2.00000000 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,672.32 | 0.72176110 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,672.59 | 2.00000000 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,762.29 | 7.00000000 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,762.42 | 2.00000000 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,762.55 | 0.06077132 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,762.69 | 0.76951331 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,762.82 | 0.00999000 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,763.75 | 0.02879279 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,764.14 | 0.03079200 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,764.28 | 3.00000000 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,765.34 | 1.00000000 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,765.60 | 3.20000000 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,765.73 | 2.42500103 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,765.87 | 0.06077132 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,766.00 | 1.13603811 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,766.53 | 0.48787545 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,766.66 | 0.14720710 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,766.79 | 0.19520208 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,767.46 | 0.07479691 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,767.59 | 0.54720711 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,767.72 | 0.73224120 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,768.38 | 0.68658606 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,768.52 | 0.41307854 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,768.65 | 0.19520208 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,769.44 | 0.19651065 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,769.71 | 0.41720609 | Sell
- 2018-10-10 6:52:31 PM |     New |  8,769.84 | 7.00000000 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,100.00 | 0.02980000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  8,010.00 | 0.03000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,984.60 | 7.00000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,984.47 | 3.71426262 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,983.96 | 1.07221356 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,983.45 | 0.05537446 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,983.20 | 0.40000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,982.94 | 0.06537152 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,982.81 | 0.12789257 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,982.68 | 3.57287860 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,982.56 | 3.00000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,982.43 | 5.37413070 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,982.30 | 0.25052271 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,982.05 | 0.28000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,981.79 | 0.20842018 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,980.77 | 1.20000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,980.64 | 0.02995682 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,980.26 | 1.27051435 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,979.88 | 0.01213154 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,979.75 | 0.59401625 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,979.49 | 1.03200000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,978.98 | 0.40000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,978.86 | 3.57287860 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,977.96 | 3.00000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,977.45 | 0.30000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,977.20 | 1.00000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,976.94 | 0.50000309 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,950.00 | 0.05100000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,900.00 | 0.03000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,800.00 | 0.03000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  7,700.00 | 0.03330000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |      0.01 |31.00000000 |  Buy
+ 2018-10-11 8:36:38 PM |     New |  8,229.16 | 0.08023071 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,233.23 | 0.54091185 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,233.37 | 0.02871839 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,233.63 | 0.41213155 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,234.42 | 0.17950371 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,234.55 | 4.10000000 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,235.34 | 0.23980893 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,235.73 | 0.07993197 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,235.86 | 1.11906448 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,236.00 | 0.31974523 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,236.26 | 0.04262798 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,236.65 | 3.63949046 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,236.79 | 0.58249845 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,236.92 | 5.72000000 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,237.31 | 1.15986947 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,237.84 | 1.10960522 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,237.97 | 1.27898091 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,238.23 | 0.72482859 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,238.89 | 0.08023071 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,239.15 | 5.75000000 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,239.28 | 0.40000000 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,240.07 | 1.00000000 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,240.20 | 1.71000000 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,240.86 | 0.30000000 | Sell
+ 2018-10-11 8:36:38 PM |     New |  8,241.65 | 0.30000000 | Sell
 
 Press <enter> key to exit.
 

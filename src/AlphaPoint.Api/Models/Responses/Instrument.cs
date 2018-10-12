@@ -2,6 +2,9 @@
 
 namespace AlphaPoint.Api.Models.Responses
 {
+    /// <summary>
+    /// An instrument is a pair of exchanged products (or fractions of them) such as US dollars and ounces of gold.
+    /// </summary>
     public class Instrument
     {
         /// <summary>
