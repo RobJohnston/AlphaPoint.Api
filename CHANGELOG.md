@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
+
+## [1.0.0-alpha3] - 2018-10-11
 ### Added
 - Add AlphaPointClient class that calls the WebSocket client.
 - Add response classes for the products, instruments, and miscellaneous sections.
@@ -16,5 +18,6 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 - First alpha release. A simple wrapper around the WebSocket to send and receive the message frame.
 
-[Unreleased]: https://github.com/RobJohnston/AlphaPoint.Api/compare/v1.0.0-alpha2...HEAD
+[Unreleased]: https://github.com/RobJohnston/AlphaPoint.Api/compare/v1.0.0-alpha3...HEAD
+[1.0.0-alpha3]: https://github.com/RobJohnston/AlphaPoint.Api/compare/v1.0.0-alpha2...v1.0.0-alpha3
 [1.0.0-alpha2]: https://github.com/RobJohnston/AlphaPoint.Api/compare/v1.0.0-alpha1...v1.0.0-alpha2
