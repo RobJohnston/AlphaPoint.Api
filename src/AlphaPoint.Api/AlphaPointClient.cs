@@ -80,10 +80,10 @@ namespace AlphaPoint.Api
 
         internal async Task<T> SendMessageFrameAsync<T>(MessageFrame frame)
         {
-            TaskCompletionSource<T> tcs = new TaskCompletionSource<T>();
-            Task<T> handlerFinished = tcs.Task;
+            var tcs = new TaskCompletionSource<T>();
+            var handlerFinished = tcs.Task;
 
-            _socket.ReceivedMessageFrame += (o, e) =>
+            void ReceiveMessageFrame(object s, ReceivedMessageFrameEventArgs e)
             {
                 try
                 {
@@ -127,10 +127,18 @@ namespace AlphaPoint.Api
                 {
                     tcs.SetException(ex);
                 }
-            };
+            }
 
-            Debug.WriteLine(string.Format("Sending message #{0}... ", frame.SequenceNumber));
-            await _socket.Send(frame);
+            try
+            {
+                _socket.ReceivedMessageFrame += ReceiveMessageFrame;
+                await _socket.Send(frame);
+                await tcs.Task;
+            }
+            finally
+            {
+                _socket.ReceivedMessageFrame -= ReceiveMessageFrame;
+            }
 
             return await handlerFinished;
         }

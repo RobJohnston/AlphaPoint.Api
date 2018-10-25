@@ -11,7 +11,6 @@ namespace AlphaPoint.Api
 {
     public class AlphaPointWebSocketClient : IDisposable
     {
-
         #region Fields
 
         private CancellationTokenSource _cancelation;
@@ -78,9 +77,7 @@ namespace AlphaPoint.Api
             {
                 _client = new ClientWebSocket();
                 await _client.ConnectAsync(uri, token);
-
-                // Don't await. Start listening on another thread.
-                Task.Run(() => Listen(_client, token));
+                Listen(_client, token);
             }
             catch (Exception ex)
             {
@@ -99,7 +96,7 @@ namespace AlphaPoint.Api
             return _client;
         }
 
-        private async Task Listen(ClientWebSocket client, CancellationToken token)
+        private async void Listen(ClientWebSocket client, CancellationToken token)
         {
             var bufferSize = 4096;
             var bufferAmplifier = 20;
