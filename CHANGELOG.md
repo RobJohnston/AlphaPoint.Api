@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 ### Fixed
+- build: update vunerable Newtonsoft.Json package to latest stable.
 - Avoid memory leak by unsubscribing from `ReceivedMessageFrame` event.
 
 ## [1.0.0-alpha3] - 2018-10-11
